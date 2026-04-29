@@ -1,0 +1,6 @@
+torch
+transformers
+trl
+datasets
+trackio
+unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git
