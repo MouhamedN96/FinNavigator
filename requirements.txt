@@ -55,3 +55,17 @@ langsmith>=0.1.0
 # Local SLM + LangGraph
 langchain-ollama>=0.2.0
 langgraph>=0.2.0
+
+# Advanced RAG
+rank_bm25>=0.2.2
+flashrank>=0.2.0
+
+# Document Ingestion
+pypdf>=5.0.0
+docx2txt>=0.8
+
+# Local Vision & Inference
+transformers>=4.45.0
+torch>=2.1.0
+pillow>=10.0.0
+qwen-vl-utils>=0.0.8

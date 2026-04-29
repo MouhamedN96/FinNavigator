@@ -20,7 +20,8 @@ from .financial_tools import (
 from .knowledge_tools import (
     KnowledgeBaseSearchTool,
     KnowledgeBaseIndexTool,
-    VectorQueryTool,
+    VisualContextIndexTool,
+    ContextRetrievalTool,
 )
 from .messaging_tools import (
     SendMessageTool,
@@ -42,7 +43,8 @@ __all__ = [
     "StockDataTool",
     "KnowledgeBaseSearchTool",
     "KnowledgeBaseIndexTool",
-    "VectorQueryTool",
+    "VisualContextIndexTool",
+    "ContextRetrievalTool",
     "SendMessageTool",
     "AlertTool",
     "CalculatorTool",

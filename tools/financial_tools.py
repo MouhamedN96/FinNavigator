@@ -10,7 +10,7 @@ Author: MiniMax Agent
 
 from typing import Type, Optional, List, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 from langchain_core.tools import BaseTool
 from langchain_core.callbacks import CallbackManagerForToolRun
 import os
@@ -51,10 +51,12 @@ class SECSearchTool(BaseTool):
     and material events (8-K). Returns filing metadata and links."""
 
     args_schema: Type[BaseModel] = SECSearchInput
+    api_key: str = Field(default_factory=lambda: os.getenv("SEC_API_KEY", ""), exclude=True)
 
-    def __init__(self, api_key: Optional[str] = None, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.api_key = api_key or os.getenv("SEC_API_KEY", "")
+        if not self.api_key:
+            self.api_key = os.getenv("SEC_API_KEY", "")
 
     def _run(
         self,
@@ -142,10 +144,12 @@ class SECExtractTool(BaseTool):
     specific sections from 10-K or 10-Q filings."""
 
     args_schema: Type[BaseModel] = SECExtractInput
+    api_key: str = Field(default_factory=lambda: os.getenv("SEC_API_KEY", ""), exclude=True)
 
-    def __init__(self, api_key: Optional[str] = None, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.api_key = api_key or os.getenv("SEC_API_KEY", "")
+        if not self.api_key:
+            self.api_key = os.getenv("SEC_API_KEY", "")
 
     def _run(
         self,

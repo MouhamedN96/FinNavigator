@@ -355,6 +355,41 @@ Synthesize these findings into a clear, actionable response.
             execution_time=execution_time
         )
 
+    async def process_vision(
+        self,
+        input_text: str,
+        image_data: str,
+        context: Optional[Dict[str, Any]] = None
+    ) -> AgentResponse:
+        """
+        Process multimodal task (text + image).
+        Passes image context to the selected sub-agent.
+        """
+        self.update_state(AgentState.THINKING)
+        
+        # Merge image into context for delegation
+        if context is None:
+            context = {}
+        context["image_data"] = image_data
+        
+        # Classification still happens based on text, but we know it's a vision task
+        task_type = self._classify_task(input_text)
+        self.add_reasoning_step(f"Vision task classified as: {task_type.value}")
+        
+        # Select agent and delegate
+        agent_name = await self._select_agent(task_type)
+        self.add_reasoning_step(f"Delegating vision task to: {agent_name}")
+        
+        agent = self.agents.get(agent_name)
+        if not agent:
+            return AgentResponse(success=False, content=f"Agent {agent_name} not found")
+            
+        # Call sub-agent's process_vision
+        agent_response = await agent.process_vision(input_text, image_data, context)
+        
+        # Merge results into supervisor response
+        return agent_response
+
     async def delegate_task(
         self,
         task: str,
@@ -454,7 +489,8 @@ class AgentTeam:
         self,
         financial_tools: List[Any],
         research_tools: List[Any],
-        analyst_tools: List[Any]
+        analyst_tools: List[Any],
+        vision_model_path: Optional[str] = None
     ) -> SupervisorAgent:
         """Setup complete agent team"""
 
@@ -489,7 +525,8 @@ class AgentTeam:
 
         self.agents["research"] = ResearchAgent(
             config=research_config,
-            llm_client=self.llm
+            llm_client=self.llm,
+            vision_model_path=vision_model_path
         )
 
         self.agents["analyst"] = AnalystAgent(

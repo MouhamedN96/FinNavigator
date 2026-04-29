@@ -18,3 +18,6 @@ outputs/
 *.csv
 experiments/Finnav_AI.ipynb
 experiments/finnav_unsloth_qwen3_4b.ipynb
+finnav_qwen3-VL_4b_gguf/
+finnav_qwen3-VL_4b_gguf.zip
+finnav_unsloth_qwen3_4b (1).ipynb

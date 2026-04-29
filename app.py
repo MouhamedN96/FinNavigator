@@ -21,6 +21,8 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List
 import asyncio
 import os
+import base64
+from io import BytesIO
 
 try:
     from dotenv import load_dotenv
@@ -44,6 +46,8 @@ from tools import (
     SECSearchTool,
     SECExtractTool,
     KnowledgeBaseSearchTool,
+    KnowledgeBaseIndexTool,
+    VisualContextIndexTool,
     SendMessageTool,
     AlertTool,
     get_sec_edgar_tools,
@@ -159,22 +163,30 @@ def initialize_agents():
         calculator = CalculatorTool()
         datetime_tool = DateTimeTool()
         knowledge_search = KnowledgeBaseSearchTool(vectorstore=vectorstore, embeddings=embeddings)
+        knowledge_index = KnowledgeBaseIndexTool(vectorstore=vectorstore)
+        visual_index = VisualContextIndexTool(vectorstore=vectorstore)
         message_tool = SendMessageTool()
         alert_tool = AlertTool(message_tool)
 
         # SEC tools: prefer sec-edgar-agentkit if installed, fall back to bundled tools.
         sec_tools = get_sec_edgar_tools()
 
-        financial_tools = [calculator, datetime_tool, knowledge_search, message_tool] + sec_tools
-        analyst_tools = [calculator, datetime_tool]
-        research_tools = sec_tools + [knowledge_search]
+        financial_tools = [calculator, datetime_tool, knowledge_search, knowledge_index, visual_index, message_tool] + sec_tools
+        analyst_tools = [calculator, datetime_tool, knowledge_search]
+        research_tools = sec_tools + [knowledge_search, knowledge_index, visual_index]
+
+        # Detect local vision model
+        vision_path = os.path.join(os.getcwd(), "finnav_qwen3-VL_4b_gguf")
+        use_local_vision = st.session_state.get("use_local_vision", False)
+        active_vision_path = vision_path if use_local_vision else None
 
         # Create agent team
         team = AgentTeam(llm_client)
         supervisor = team.setup_team(
             financial_tools=financial_tools,
             research_tools=research_tools,
-            analyst_tools=analyst_tools
+            analyst_tools=analyst_tools,
+            vision_model_path=active_vision_path
         )
 
         # Store in session state
@@ -221,6 +233,23 @@ def render_sidebar():
             max_iterations = st.slider("Max Reasoning Steps", 1, 20, 10)
             temperature = st.slider("Temperature", 0.0, 1.0, 0.5, 0.1)
             show_reasoning = st.checkbox("Show Reasoning Trace", value=True)
+            
+            # Local Vision Toggle
+            vision_path = os.path.join(os.getcwd(), "finnav_qwen3-VL_4b_gguf")
+            local_vision_exists = os.path.exists(vision_path)
+            use_local_vision = st.checkbox(
+                "Use Local Vision SLM (Qwen3-VL)", 
+                value=False, 
+                disabled=not local_vision_exists,
+                help="Requires ~10GB RAM and proper dependencies." if local_vision_exists else "Local model folder not found."
+            )
+
+            if use_local_vision != st.session_state.get("use_local_vision", False):
+                st.session_state.use_local_vision = use_local_vision
+                # Clear agents to re-initialize with new vision config
+                if "agents_initialized" in st.session_state:
+                    del st.session_state.agents_initialized
+                    st.rerun()
 
             st.session_state.max_iterations = max_iterations
             st.session_state.temperature = temperature
@@ -267,65 +296,92 @@ def render_agent_chat():
     for msg in st.session_state.agent_messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
+            if "image" in msg:
+                st.image(base64.b64decode(msg["image"]), width=300)
             if "reasoning" in msg and st.session_state.get("show_reasoning"):
                 with st.expander("🔍 Reasoning Trace"):
                     st.code(msg["reasoning"], language=None)
 
-    # Chat input
-    if prompt := st.chat_input("Ask about finances, SEC filings, or portfolio..."):
-        # Add user message
-        st.session_state.agent_messages.append({"role": "user", "content": prompt})
+    # Chat input area with file upload
+    with st.container():
+        # Optional image upload
+        uploaded_file = st.file_uploader("🖼️ Attach image (charts, filings, tables...)", type=["jpg", "jpeg", "png"])
+        
+        # Chat input
+        if prompt := st.chat_input("Ask about finances, SEC filings, or portfolio..."):
+            # Prepare message data
+            image_b64 = None
+            if uploaded_file:
+                bytes_data = uploaded_file.getvalue()
+                image_b64 = base64.b64encode(bytes_data).decode("utf-8")
+                
+            # Add user message to history
+            user_msg = {"role": "user", "content": prompt}
+            if image_b64:
+                user_msg["image"] = image_b64
+            
+            st.session_state.agent_messages.append(user_msg)
 
-        with st.chat_message("user"):
-            st.markdown(prompt)
+            with st.chat_message("user"):
+                st.markdown(prompt)
+                if image_b64:
+                    st.image(uploaded_file, caption="Uploaded context", width=300)
 
-        # Process with agent
-        with st.chat_message("assistant"):
-            with st.spinner("Agent reasoning..."):
-                if st.session_state.get("supervisor"):
-                    # Run async agent
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    response = loop.run_until_complete(
-                        st.session_state.supervisor.process(prompt)
-                    )
-                    loop.close()
+            # Process with agent
+            with st.chat_message("assistant"):
+                with st.spinner("Agent reasoning..."):
+                    if st.session_state.get("supervisor"):
+                        # Run async agent
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        
+                        if image_b64:
+                            # Use process_vision for multimodal tasks
+                            response = loop.run_until_complete(
+                                st.session_state.supervisor.process_vision(prompt, image_b64)
+                            )
+                        else:
+                            # Standard text processing
+                            response = loop.run_until_complete(
+                                st.session_state.supervisor.process(prompt)
+                            )
+                        loop.close()
 
-                    # Display response
-                    st.markdown(response.content)
+                        # Display response
+                        st.markdown(response.content)
 
-                    # Show reasoning if enabled
-                    if st.session_state.get("show_reasoning") and response.reasoning_steps:
-                        with st.expander("🔍 Reasoning Trace"):
-                            for step in response.reasoning_steps[-5:]:
-                                if isinstance(step, dict):
-                                    thought = step.get("thought", "")
-                                    action = step.get("action", "")
-                                    observation = step.get("observation", "")
-                                    if thought:
-                                        st.markdown(f"**Thought:** {thought}")
-                                    if action:
-                                        st.markdown(f"**Action:** {action}")
-                                    if observation:
-                                        st.markdown(f"**Observation:** {observation[:200]}...")
+                        # Show reasoning if enabled
+                        if st.session_state.get("show_reasoning") and response.reasoning_steps:
+                            with st.expander("🔍 Reasoning Trace"):
+                                for step in response.reasoning_steps[-5:]:
+                                    if isinstance(step, dict):
+                                        thought = step.get("thought", "")
+                                        action = step.get("action", "")
+                                        observation = step.get("observation", "")
+                                        if thought:
+                                            st.markdown(f"**Thought:** {thought}")
+                                        if action:
+                                            st.markdown(f"**Action:** {action}")
+                                        if observation:
+                                            st.markdown(f"**Observation:** {observation[:200]}...")
 
-                    # Store in history
-                    reasoning_text = "\n".join([
-                        str(step) for step in response.reasoning_steps[-5:]
-                    ]) if response.reasoning_steps else ""
+                        # Store in history
+                        reasoning_text = "\n".join([
+                            str(step) for step in response.reasoning_steps[-5:]
+                        ]) if response.reasoning_steps else ""
 
-                    st.session_state.agent_messages.append({
-                        "role": "assistant",
-                        "content": response.content,
-                        "reasoning": reasoning_text
-                    })
+                        st.session_state.agent_messages.append({
+                            "role": "assistant",
+                            "content": response.content,
+                            "reasoning": reasoning_text
+                        })
 
-                    # Update memory
-                    if st.session_state.get("memory_manager"):
-                        st.session_state.memory_manager.add_conversation("user", prompt)
-                        st.session_state.memory_manager.add_conversation("assistant", response.content)
-                else:
-                    st.error("Agent not initialized")
+                        # Update memory
+                        if st.session_state.get("memory_manager"):
+                            st.session_state.memory_manager.add_conversation("user", prompt)
+                            st.session_state.memory_manager.add_conversation("assistant", response.content)
+                    else:
+                        st.error("Agent not initialized")
 
 
 def render_research_tab():

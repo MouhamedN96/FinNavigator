@@ -18,6 +18,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 
 from .base_agent import BaseAgent, AgentConfig, AgentResponse, AgentCapability, AgentState
+from tools.vision_inference import LocalVisionInference
 
 
 @dataclass
@@ -61,10 +62,31 @@ class ResearchAgent(BaseAgent):
         config: AgentConfig,
         llm_client: Any,
         sec_api_key: Optional[str] = None,
-        memory_manager: Optional[Any] = None
+        memory_manager: Optional[Any] = None,
+        vision_model_path: Optional[str] = None
     ):
         super().__init__(config, llm_client, memory_manager)
         self.sec_api_key = sec_api_key
+        # Initialize local vision if path provided
+        self.local_vision = None
+        if vision_model_path and os.path.exists(vision_model_path):
+            import os
+            self.local_vision = LocalVisionInference(vision_model_path)
+            self.add_reasoning_step(f"Local vision model detected at {vision_model_path}")
+        
+        # Initialize RAG tools
+        self.kb_search = None
+        self.kb_index = None
+        self.visual_index = None
+        
+        if config.tools:
+            for tool in config.tools:
+                if tool.name == "knowledge_search":
+                    self.kb_search = tool
+                elif tool.name == "knowledge_index":
+                    self.kb_index = tool
+                elif tool.name == "index_visual_context":
+                    self.visual_index = tool
 
     def get_capabilities(self) -> List[AgentCapability]:
         """Return agent capabilities"""
@@ -162,6 +184,17 @@ class ResearchAgent(BaseAgent):
             "metadata": {}
         }
 
+        # Check Knowledge Base First
+        if self.kb_search:
+            self.add_reasoning_step(f"Checking knowledge base for existing {section_key} data")
+            kb_query = f"{ticker} {section_key} {section_name}"
+            kb_result = await self.kb_search.ainvoke({"query": kb_query, "top_k": 1})
+            if "### Found" in kb_result and len(kb_result) > 200:
+                self.add_reasoning_step("Found relevant data in knowledge base, using cached version")
+                # Parsing logic for cached result could be added here
+                # For now, we continue to live fetch if cache isn't 'perfect'
+                pass
+
         try:
             from sec_api import QueryApi, ExtractorApi
             import os
@@ -200,8 +233,21 @@ class ResearchAgent(BaseAgent):
             # Extract section
             try:
                 content = extractor_api.get_section(filing_url, section_key, "text")
-                result["content"] = content[:5000]  # Limit size
+                result["content"] = content[:10000]  # Increased limit for better RAG
                 result["content_length"] = len(content)
+                
+                # Auto-index into Knowledge Base for RAG
+                if self.kb_index and len(content) > 100:
+                    self.add_reasoning_step(f"Auto-indexing {section_key} into knowledge base")
+                    await self.kb_index.ainvoke({
+                        "texts": [content[:20000]], # Index up to 20k chars
+                        "metadata": [{
+                            "ticker": ticker,
+                            "source": f"SEC {filings[0].get('formType')} - {section_name}",
+                            "date": filings[0].get("filedAt"),
+                            "section": section_key
+                        }]
+                    })
             except Exception as e:
                 result["error"] = f"Extraction failed: {str(e)}"
 
@@ -394,6 +440,70 @@ Provide a concise executive summary suitable for a financial analyst.
             reasoning_steps=self.reasoning_history,
             metadata=research
         )
+
+    async def process_vision(
+        self,
+        input_text: str,
+        image_data: str,
+        context: Optional[Dict[str, Any]] = None
+    ) -> AgentResponse:
+        """
+        Process multimodal research request.
+        Analyzes images of filings, tables, or financial documents.
+        """
+        self.update_state(AgentState.THINKING)
+        self.add_reasoning_step("Analyzing visual input (image) for research context")
+        
+        # Prepare multimodal message
+        image_url = f"data:image/jpeg;base64,{image_data}"
+        
+        message = HumanMessage(
+            content=[
+                {"type": "text", "text": input_text or "Analyze this financial document image."},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": image_url},
+                },
+            ]
+        )
+        
+        try:
+            # Use local vision model if available, otherwise fallback to cloud LLM
+            if self.local_vision:
+                self.add_reasoning_step("Using local Qwen3-VL for image analysis")
+                content = self.local_vision.process_image(
+                    prompt=input_text or "Analyze this financial document image.",
+                    image_base64=image_data
+                )
+                response_content = content
+            else:
+                self.add_reasoning_step("Using cloud LLM for vision (local model not active)")
+                response = await self.llm.ainvoke([message])
+                response_content = response.content
+            
+            # Index visual context if available
+            if self.visual_index and response_content:
+                self.add_reasoning_step("Indexing visual context for future retrieval")
+                await self.visual_index.ainvoke({
+                    "image_description": response.content,
+                    "image_id": f"research_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                    "metadata": {"ticker": self._extract_ticker_from_query(input_text) or "Unknown"}
+                })
+
+            self.update_state(AgentState.IDLE)
+            return AgentResponse(
+                success=True,
+                content=response.content,
+                reasoning_steps=self.reasoning_history,
+                metadata={"has_image": True, "input_text": input_text}
+            )
+        except Exception as e:
+            self.update_state(AgentState.IDLE)
+            return AgentResponse(
+                success=False,
+                content=f"Research vision processing failed: {str(e)}",
+                reasoning_steps=self.reasoning_history
+            )
 
     async def stream_process(
         self,

@@ -7,9 +7,9 @@ Fundamental tools used by all agents including calculator, datetime, and search.
 Author: MiniMax Agent
 """
 
-from typing import Type, Optional
+from typing import Type, Optional, Any
 from datetime import datetime, timedelta
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 from langchain_core.tools import BaseTool
 from langchain_core.callbacks import CallbackManagerForToolRun
 
@@ -207,10 +207,10 @@ class WikipediaSearchTool(BaseTool):
     economic terms, regulations, and historical events. Good for background research."""
 
     args_schema: Type[BaseModel] = WikipediaInput
+    _wiki_client: Any = PrivateAttr(default=None)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._wiki_client = None
 
     def _get_wiki_client(self):
         """Lazy load Wikipedia client"""

@@ -69,6 +69,7 @@ class AgentMessage:
     message_type: str = "text"
     metadata: Dict[str, Any] = field(default_factory=dict)
     attachments: List[str] = field(default_factory=list)
+    image_data: Optional[str] = None  # Base64 encoded image
     thread_id: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -81,6 +82,7 @@ class AgentMessage:
             "message_type": self.message_type,
             "metadata": self.metadata,
             "attachments": self.attachments,
+            "image_data": self.image_data,
             "thread_id": self.thread_id,
         }
 
@@ -186,7 +188,8 @@ class BaseAgent(ABC):
     def add_message(self, message: AgentMessage) -> None:
         """Add message to history"""
         self.message_history.append(message)
-        self.logger.debug(f"Message from {message.sender} to {message.recipient}: {message.content[:100]}...")
+        summary = f"Image + {message.content[:50]}" if message.image_data else message.content[:100]
+        self.logger.debug(f"Message from {message.sender} to {message.recipient}: {summary}...")
 
     async def execute_tool(
         self,
@@ -240,17 +243,35 @@ Always provide accurate, up-to-date financial information.
         input_text: str,
         context: Optional[Dict[str, Any]] = None
     ) -> AgentResponse:
+        """Process text input."""
+        pass
+
+    async def process_vision(
+        self,
+        input_text: str,
+        image_data: str,
+        context: Optional[Dict[str, Any]] = None
+    ) -> AgentResponse:
         """
-        Process input and generate response.
+        Process multimodal input (text + image).
 
         Args:
-            input_text: User input
-            context: Optional context for the request
+            input_text: Question or instruction about the image
+            image_data: Base64 encoded image string
+            context: Optional context
 
         Returns:
-            Agent response with reasoning and results
+            Agent response
         """
-        pass
+        self.update_state(AgentState.THINKING)
+        self.add_reasoning_step(f"Processing vision request: {input_text[:50]}...")
+        
+        # Default implementation: fallback to text if not overridden
+        # In specialized agents, this will call the multimodal LLM
+        return await self.process(
+            f"[Image Attached] {input_text}",
+            context={"image_data": image_data, **(context or {})}
+        )
 
     def get_reasoning_trace(self) -> str:
         """Get formatted reasoning trace"""

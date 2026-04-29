@@ -9,7 +9,7 @@ Author: MiniMax Agent
 """
 
 from typing import Type, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 from langchain_core.tools import BaseTool
 from langchain_core.callbacks import CallbackManagerForToolRun
 import os
@@ -47,14 +47,13 @@ class SendMessageTool(BaseTool):
     Include user_id and message content."""
 
     args_schema: Type[BaseModel] = SendMessageInput
+    api_key: str = Field(default_factory=lambda: os.getenv("VOICEFLOW_API_KEY", ""), exclude=True)
+    version_id: str = Field(default="development")
 
-    api_key: str = ""
-    version_id: str = "development"
-
-    def __init__(self, api_key: Optional[str] = None, version_id: str = "development", **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.api_key = api_key or os.getenv("VOICEFLOW_API_KEY", "")
-        self.version_id = version_id
+        if not self.api_key:
+            self.api_key = os.getenv("VOICEFLOW_API_KEY", "")
 
     def _run(
         self,
@@ -138,12 +137,14 @@ class AlertTool(BaseTool):
     Includes priority levels and structured format."""
 
     args_schema: Type[BaseModel] = AlertInput
+    voiceflow: Any = Field(default=None, exclude=True)
 
-    voiceflow: Any = None
-
-    def __init__(self, voiceflow_tool: Optional[SendMessageTool] = None, **kwargs):
+    def __init__(self, voiceflow: Any = None, **kwargs):
+        if voiceflow is not None:
+            kwargs["voiceflow"] = voiceflow
         super().__init__(**kwargs)
-        self.voiceflow = voiceflow_tool or SendMessageTool()
+        if self.voiceflow is None:
+            self.voiceflow = SendMessageTool()
 
     def _format_alert(self, alert_type: str, title: str, message: str, priority: str) -> str:
         """Format alert message"""
@@ -230,12 +231,12 @@ class PortfolioAlertTool(BaseTool):
     Integrates with user's portfolio data."""
 
     args_schema: Type[BaseModel] = PortfolioAlertInput
+    alert_tool: Any = Field(default=None, exclude=True)
 
-    alert_tool: Any = None
-
-    def __init__(self, alert_tool: Optional[AlertTool] = None, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.alert_tool = alert_tool or AlertTool()
+        if self.alert_tool is None:
+            self.alert_tool = AlertTool()
 
     def _run(
         self,
@@ -308,12 +309,12 @@ class ScheduledReportTool(BaseTool):
     Integrates with report generation pipeline."""
 
     args_schema: Type[BaseModel] = ScheduledReportInput
+    message_tool: Any = Field(default=None, exclude=True)
 
-    message_tool: Any = None
-
-    def __init__(self, message_tool: Optional[SendMessageTool] = None, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.message_tool = message_tool or SendMessageTool()
+        if self.message_tool is None:
+            self.message_tool = SendMessageTool()
 
     def _format_report(self, report_type: str, message: str) -> str:
         """Format report message"""

@@ -373,6 +373,93 @@ If you have enough information to answer, respond directly.
                 execution_time=execution_time,
             )
 
+    async def process_vision(
+        self,
+        input_text: str,
+        image_data: str,
+        context: Optional[Dict[str, Any]] = None
+    ) -> AgentResponse:
+        """Process multimodal input using LangGraph's tool-calling ReAct agent."""
+        from langgraph.prebuilt import create_react_agent
+        from langchain_core.messages import HumanMessage, SystemMessage as _SystemMessage
+
+        self.update_state(AgentState.THINKING)
+        self.reasoning_history = []
+        start_time = datetime.now()
+
+        tools = list(self.tools_map.values()) or list(self.config.tools)
+
+        try:
+            agent = create_react_agent(
+                self.llm,
+                tools,
+                prompt=self.get_system_prompt(),
+            )
+
+            # Format multimodal message
+            content = [
+                {"type": "text", "text": input_text},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{image_data}"},
+                },
+            ]
+
+            messages: List[Any] = []
+            if context and isinstance(context, dict) and context.get("context"):
+                messages.append(_SystemMessage(content=str(context["context"])))
+            messages.append(HumanMessage(content=content))
+
+            self.add_reasoning_step(f"Invoking multimodal agent with image and {len(tools)} tools")
+
+            result = await agent.ainvoke(
+                {"messages": messages},
+                config={"recursion_limit": self.react_config.max_iterations * 2},
+            )
+
+            history = result.get("messages", [])
+            final_message = history[-1] if history else None
+            final_content = getattr(final_message, "content", "") or "(no response)"
+
+            # Extract tool usage for trace
+            tools_used: List[str] = []
+            reasoning_steps: List[Dict[str, Any]] = []
+            for msg in history:
+                tool_calls = getattr(msg, "tool_calls", None) or []
+                for tc in tool_calls:
+                    name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
+                    if name:
+                        tools_used.append(name)
+                        reasoning_steps.append({
+                            "thought": getattr(msg, "content", "") or "",
+                            "action": name,
+                            "action_input": tc.get("args") if isinstance(tc, dict) else getattr(tc, "args", None),
+                            "observation": None,
+                        })
+
+            self.update_state(AgentState.IDLE)
+            execution_time = (datetime.now() - start_time).total_seconds()
+
+            return AgentResponse(
+                success=True,
+                content=final_content if isinstance(final_content, str) else str(final_content),
+                reasoning_steps=reasoning_steps,
+                tools_used=tools_used,
+                execution_time=execution_time,
+                metadata={"backend": "langgraph.multimodal", "message_count": len(history)},
+            )
+
+        except Exception as e:
+            self.logger.error(f"Multimodal agent error: {e}")
+            self.update_state(AgentState.ERROR)
+            execution_time = (datetime.now() - start_time).total_seconds()
+            return AgentResponse(
+                success=False,
+                content=f"Multimodal error: {e}",
+                errors=[str(e)],
+                execution_time=execution_time,
+            )
+
     async def stream_process(
         self,
         input_text: str,

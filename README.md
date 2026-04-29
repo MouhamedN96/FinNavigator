@@ -25,7 +25,13 @@ A  financial intelligence system powered by LangChain Deep Agents, featuring aut
 - Sector exposure analysis
 - Rebalancing recommendations
 
-###  Agent Chat Interface
+### 👁️ Multimodal Support (NEW)
+
+- **Local Vision SLM**: Integrated Qwen3-VL-4B for local analysis of financial charts and documents.
+- **Visual Context Indexing**: Store and retrieve descriptions of visual data alongside textual filings.
+- **Hybrid RAG**: Combines semantic similarity (Chroma) with keyword matching (BM25) and Flashrank reranking.
+
+### 💬 Agent Chat Interface
 
 - Natural language interaction with financial agents
 - Visible reasoning trace showing agent thought process
@@ -34,10 +40,13 @@ A  financial intelligence system powered by LangChain Deep Agents, featuring aut
 
 ### 🔗 Integrations
 
+- NVIDIA NIM (Llama 3.70B) for LLM
+- Qwen3-VL (Local SLM) for Multimodal Vision
 - Colab, Huggingface, Ollama for LLM Training and Inference
 - SEC API for regulatory filings
 - ChromaDB for vector storage
 - Voiceflow for messaging alerts
+- Flashrank for high-precision reranking
 
 ## Architecture
 
