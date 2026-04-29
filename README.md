@@ -1,31 +1,31 @@
-# FinNavigator AI - LangChain Deep Agents
+# FinNavigator AI -  Deep Agents to Navigate and Figure out your Finance
 
-A sophisticated financial intelligence system powered by LangChain Deep Agents, featuring autonomous reasoning, multi-agent collaboration, and comprehensive SEC filing analysis.
+A  financial intelligence system powered by LangChain Deep Agents, featuring autonomous reasoning, multi-agent collaboration, and comprehensive SEC filing analysis.
 
 ## Features
 
-### 🤖 Deep Agent System
+###  Deep Agent System
 
 - **Financial Agent**: ReAct-based reasoning agent with chain-of-thought prompting
 - **Research Agent**: Specialized in SEC filings and company research
 - **Analyst Agent**: Portfolio and risk analysis with real-time metrics
 - **Supervisor Agent**: Orchestrates multiple agents for complex tasks
 
-### 🔬 SEC Filing Research
+###  SEC Filing Research
 
 - Search SEC EDGAR database for regulatory filings (10-K, 10-Q, 8-K)
 - Extract specific sections (Risk Factors, MD&A, Financials)
 - Historical filing comparison
 - Risk factor analysis and categorization
 
-### 📊 Portfolio Analysis
+###  Portfolio Analysis
 
 - Real-time portfolio performance tracking
 - Risk metrics (VaR, Sharpe Ratio, Beta, Diversification)
 - Sector exposure analysis
 - Rebalancing recommendations
 
-### 💬 Agent Chat Interface
+###  Agent Chat Interface
 
 - Natural language interaction with financial agents
 - Visible reasoning trace showing agent thought process
@@ -34,7 +34,7 @@ A sophisticated financial intelligence system powered by LangChain Deep Agents, 
 
 ### 🔗 Integrations
 
-- NVIDIA NIM (Llama 3.70B) for LLM
+- Colab, Huggingface, Ollama for LLM Training and Inference
 - SEC API for regulatory filings
 - ChromaDB for vector storage
 - Voiceflow for messaging alerts
@@ -225,5 +225,3 @@ Access the Agent Monitor tab to view:
 MIT License
 
 ## Author
-
-Developed by MiniMax Agent
