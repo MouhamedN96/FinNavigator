@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 import json
 import re
+import os
 
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
@@ -70,7 +71,6 @@ class ResearchAgent(BaseAgent):
         # Initialize local vision if path provided
         self.local_vision = None
         if vision_model_path and os.path.exists(vision_model_path):
-            import os
             self.local_vision = LocalVisionInference(vision_model_path)
             self.add_reasoning_step(f"Local vision model detected at {vision_model_path}")
         
