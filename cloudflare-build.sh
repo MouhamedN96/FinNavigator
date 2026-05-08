@@ -1,51 +1,74 @@
 #!/usr/bin/env bash
 # Cloudflare Pages build script for the Flet web bundle.
 #
-# Pages' default Linux build image has Python + pip but NOT Flutter.
-# We download a pinned Flutter SDK into the build sandbox each run, then
-# use `flet build web` to emit a static bundle into `build/web/`.
-#
-# Cloudflare Pages → Build settings:
+# Pages settings:
 #   Build command:    bash cloudflare-build.sh
 #   Output directory: build/web
-#   Root directory:   (blank — repo root)
+#   Root directory:   (blank)
+#   Environment vars (recommended):
+#     PYTHON_VERSION = 3.11
+#     FLUTTER_VERSION = 3.27.4
+#
+# Diagnostic-friendly: every step prints a banner so the failed step is
+# obvious in Cloudflare's build log.
 
-set -euo pipefail
+set -eu
+set -o pipefail
 
-FLUTTER_VERSION="3.27.4"
+banner() { printf "\n========== %s ==========\n" "$1"; }
+
+banner "ENV"
+echo "PWD       : $(pwd)"
+echo "USER      : $(whoami 2>/dev/null || echo unknown)"
+echo "HOME      : ${HOME:-unset}"
+echo "PYTHON    : $(command -v python || command -v python3 || echo MISSING)"
+$(command -v python || command -v python3) --version || true
+echo "PIP       : $(command -v pip || command -v pip3 || echo MISSING)"
+echo "BASH      : ${BASH_VERSION:-not bash}"
+echo "DISK      : $(df -h . | tail -1)"
+
+PY=$(command -v python3 || command -v python)
+PIP=$(command -v pip3 || command -v pip)
+
+FLUTTER_VERSION="${FLUTTER_VERSION:-3.27.4}"
 FLUTTER_TGZ="flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
 FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/${FLUTTER_TGZ}"
 FLUTTER_DIR="${HOME}/flutter"
 
-echo "→ Cloudflare Pages build for FinNavigator (Flet web)"
-echo "  Python: $(python --version 2>&1 || true)"
-echo "  Pip:    $(pip --version 2>&1 || true)"
-
-# 1. Install Flutter (cached at $HOME/flutter between builds when Pages keeps the cache warm)
-if [ ! -x "${FLUTTER_DIR}/bin/flutter" ]; then
-    echo "→ Downloading Flutter ${FLUTTER_VERSION}…"
-    curl -fsSL "${FLUTTER_URL}" -o "/tmp/${FLUTTER_TGZ}"
+banner "STEP 1 — Flutter ${FLUTTER_VERSION}"
+if [ -x "${FLUTTER_DIR}/bin/flutter" ]; then
+    echo "Using cached Flutter at ${FLUTTER_DIR}"
+else
+    echo "Downloading from ${FLUTTER_URL}"
+    if ! curl -fSL "${FLUTTER_URL}" -o "/tmp/${FLUTTER_TGZ}"; then
+        echo "✗ Flutter download failed. URL may have moved."
+        echo "  Try a different FLUTTER_VERSION (e.g. 3.24.5, 3.32.0) in Pages env vars."
+        exit 1
+    fi
     mkdir -p "${HOME}"
     tar -xJf "/tmp/${FLUTTER_TGZ}" -C "${HOME}"
     rm "/tmp/${FLUTTER_TGZ}"
 fi
-
 export PATH="${FLUTTER_DIR}/bin:${PATH}"
 flutter --version
 flutter config --no-analytics --enable-web
 
-# 2. Install Python deps for the UI build
-pip install --upgrade pip
-pip install -r requirements-ui.txt
+banner "STEP 2 — pip install requirements-ui.txt"
+"${PIP}" install --upgrade pip
+"${PIP}" install -r requirements-ui.txt
+"${PY}" -c "import flet; print('flet', flet.__version__)"
 
-# 3. Build the Flet web bundle
-flet --version
-flet build web \
+banner "STEP 3 — flet build web"
+# `flet build web` needs the working dir to be the *project root*.
+# UI entry is ui/app.py.
+flet build web ui/app.py \
     --project finnavigator \
     --product "FinNavigator" \
     --org "io.moh749.finnav" \
     --description "FinNavigator — multi-agent financial intelligence" \
     --no-rich-output
 
-ls -la build/web/ | head -20
-echo "→ Build complete. Cloudflare Pages should serve build/web/"
+banner "OUTPUT"
+ls -la build/web/ | head -30
+du -sh build/web 2>/dev/null || true
+echo "✓ Build complete"
