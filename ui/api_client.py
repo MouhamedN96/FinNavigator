@@ -15,8 +15,14 @@ import httpx
 DEFAULT_TIMEOUT = httpx.Timeout(60.0, connect=10.0)
 
 
+# Production fallback so the static web build (where env vars don't exist at runtime)
+# can still reach the deployed API. Local dev sets FINNAV_API_URL=http://127.0.0.1:8000
+# in .env to override.
+_DEFAULT_API_URL = "https://finnavigator-api.fly.dev"
+
+
 def base_url() -> str:
-    return os.getenv("FINNAV_API_URL", "http://127.0.0.1:8000").rstrip("/")
+    return os.getenv("FINNAV_API_URL", _DEFAULT_API_URL).rstrip("/")
 
 
 async def health() -> Dict[str, Any]:
