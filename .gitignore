@@ -5,6 +5,7 @@ __pycache__/
 .env.txt
 .antigravity/
 .claude/
+CLAUDE.md
 session_logs/
 user_input_files/
 data/
