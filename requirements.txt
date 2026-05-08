@@ -20,8 +20,10 @@ langchain-huggingface>=0.1.0
 sentence-transformers>=3.0.0
 
 # Web Framework
-streamlit>=1.30.0
-plotly>=5.18.0
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+streamlit>=1.30.0       # kept for legacy_streamlit_app.py — remove next milestone
+plotly>=5.18.0          # kept for legacy_streamlit_app.py
 
 # Data Processing
 pandas>=2.2.3

@@ -74,17 +74,27 @@ A  financial intelligence system powered by LangChain Deep Agents, featuring aut
 ## Installation
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Install server + UI deps
+pip install -r requirements.txt -r requirements-ui.txt
 
-# Set environment variables
+# Set environment variables (or copy .env.example → .env and fill in)
 export NVIDIA_API_KEY="your_nvidia_api_key"
 export SEC_API_KEY="your_sec_api_key"
 export VOICEFLOW_API_KEY="your_voiceflow_api_key"
 
-# Run the application
-streamlit run app.py
+# Run the FastAPI backend
+uvicorn api.server:app --reload --port 8000
+
+# In another terminal, run the Flet UI (desktop dev)
+flet run ui/app.py
+
+# Or build the static web bundle for Cloudflare Pages
+flet build web
 ```
+
+> The original Streamlit interface is still in `legacy_streamlit_app.py` and works via
+> `streamlit run legacy_streamlit_app.py` — kept one milestone for parity testing,
+> will be removed in the next.
 
 ## Usage
 
@@ -189,8 +199,27 @@ finavigator/
 │   └── __init__.py         # Memory management
 ├── config/
 │   └── __init__.py
-├── app.py                  # Streamlit application
+├── inference/
+│   ├── __init__.py
+│   └── backend.py          # LLM backend adapter (ollama / nvidia / openai / anthropic / webgpu)
+├── api/
+│   ├── __init__.py
+│   └── server.py           # FastAPI server (Fly.io / Railway / HF Spaces)
+├── ui/
+│   ├── app.py              # Flet entry — web (Cloudflare Pages) / desktop / PWA
+│   ├── api_client.py
+│   └── pages/              # chat, research, portfolio, monitor
+├── desktop/
+│   ├── launcher.py         # Bundles Ollama + uvicorn + Flet for native binaries
+│   └── ollama_bootstrap.py
+├── docs/
+│   └── desktop.md
+├── legacy_streamlit_app.py # Old Streamlit UI — kept one milestone for parity
+├── Dockerfile              # API server image (FastAPI + uvicorn)
+├── fly.toml
 ├── requirements.txt
+├── requirements-ui.txt
+├── .env.example
 └── README.md
 ```
 
@@ -229,8 +258,28 @@ Access the Agent Monitor tab to view:
 - Memory usage
 - Tool usage statistics
 
+## Deployment
+
+### 🚆 Deploying to Railway
+
+1.  Push your code to GitHub.
+2.  Connect your repository to [Railway](https://railway.app/).
+3.  Add the following Environment Variables in the Railway dashboard:
+    *   `NVIDIA_API_KEY` (Required for primary LLM)
+    *   `SEC_API_KEY` (Required for research)
+    *   `VOICEFLOW_API_KEY` (Optional for alerts)
+4.  Railway will automatically detect the `Dockerfile` and deploy the app.
+
+### 🤗 Deploying to Hugging Face Spaces
+
+1.  Create a new Space on [Hugging Face](https://huggingface.co/spaces) using the **Streamlit** SDK.
+2.  Sync your GitHub repository or upload the files.
+3.  Add your secrets (`NVIDIA_API_KEY`, etc.) in the Space settings.
+4.  *Note: To use the Local Vision SLM, you will need a Space with at least 16GB RAM or a GPU tier.*
+
 ## License
 
 MIT License
 
 ## Author
+MouhamedN96

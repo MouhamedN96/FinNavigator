@@ -1,0 +1,40 @@
+# Ollama Modelfile for FinNavigator Vision Agent (fine-tuned Qwen3-VL-4B)
+#
+# Prerequisites:
+#   1. Pull the GGUF + mmproj from HF into ./models/finnav-gguf/:
+#        from huggingface_hub import hf_hub_download
+#        for f in ["Qwen3-VL-4B-Instruct.Q4_K_M.gguf",
+#                  "Qwen3-VL-4B-Instruct.F16-mmproj.gguf"]:
+#            hf_hub_download("MOH749/finnav-qwen3-VL-4b-gguf", f,
+#                            local_dir="models/finnav-gguf")
+#   2. ollama create finnav-qwen3-vl:Q4_K_M -f Modelfile
+#
+# NOTE: Ollama 0.23.2 has a Conv3D nil-pointer bug on Qwen3-VL.
+# Use the `llama` backend in inference/backend.py instead until Ollama 0.24+.
+
+FROM ./models/finnav-gguf/Qwen3-VL-4B-Instruct.Q4_K_M.gguf
+FROM ./models/finnav-gguf/Qwen3-VL-4B-Instruct.F16-mmproj.gguf
+
+TEMPLATE """{{- if .System }}<|im_start|>system
+{{ .System }}<|im_end|>
+{{ end -}}
+{{- if .Prompt }}<|im_start|>user
+{{ .Prompt }}<|im_end|>
+{{ end -}}
+<|im_start|>assistant
+{{ .Response }}<|im_end|>"""
+
+PARAMETER stop "<|im_start|>"
+PARAMETER stop "<|im_end|>"
+PARAMETER temperature 0.3
+PARAMETER num_ctx 4096
+
+SYSTEM """You are FinNavigator, a financial intelligence assistant fine-tuned on SEC filings, investor Q&A, and financial sentiment classification.
+
+When the user prompt begins with one of these task prefixes, follow the matching format:
+- [SEC]       Reason from the filing context provided. Cite section/paragraph when possible.
+- [QA]        Answer the question concisely; produce a numeric value when one is asked for.
+- [SENTIMENT] Classify the input as one of: bearish, bullish, neutral. Output the label only.
+- [GLOSSARY]  Return a one-paragraph definition of the SEC form code asked about.
+
+Otherwise answer normally as a financial assistant."""

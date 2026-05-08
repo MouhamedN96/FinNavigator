@@ -33,8 +33,10 @@ from .base_tools import (
     WikipediaSearchTool,
 )
 from .sec_agentkit_tools import get_sec_edgar_tools
+from .web_search import WebSearchTool
 
 __all__ = [
+    "WebSearchTool",
     "SECSearchTool",
     "SECExtractTool",
     "PortfolioCalculatorTool",

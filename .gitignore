@@ -4,6 +4,7 @@ __pycache__/
 .env
 .env.txt
 .antigravity/
+.claude/
 session_logs/
 user_input_files/
 data/
@@ -18,6 +19,11 @@ outputs/
 *.csv
 experiments/Finnav_AI.ipynb
 experiments/finnav_unsloth_qwen3_4b.ipynb
+# Vision / fine-tuned model artefacts — never check in (5GB+, downloaded from HF at runtime)
 finnav_qwen3-VL_4b_gguf/
 finnav_qwen3-VL_4b_gguf.zip
+models/
+
+# Local fine-tuning notebook (contains Colab Secrets, big outputs)
 finnav_unsloth_qwen3_4b (1).ipynb
+finnav_unsloth_qwen3_4b*.ipynb

@@ -1,0 +1,10 @@
+# Flet UI build/dev requirements — NOT needed in the API server image.
+#
+# Install for local dev:
+#   pip install -r requirements-ui.txt
+# Build for web:
+#   flet build web
+# Build for desktop:
+#   flet build windows | macos | linux
+flet>=0.25.0
+httpx>=0.28.1

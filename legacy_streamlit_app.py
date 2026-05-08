@@ -106,6 +106,19 @@ def get_llm_client():
                 api_key=api_key,
                 temperature=temperature,
             )
+        if backend == "nvidia":
+            from langchain_openai import ChatOpenAI
+            api_key = os.getenv("NVIDIA_API_KEY")
+            if not api_key:
+                st.error("LLM_BACKEND=nvidia but NVIDIA_API_KEY not set.")
+                return None
+            return ChatOpenAI(
+                model=os.getenv("MODEL_NAME", "meta/llama-3.1-70b-instruct"),
+                api_key=api_key,
+                base_url="https://integrate.api.nvidia.com/v1",
+                temperature=temperature,
+            )
+
         st.error(f"Unknown LLM_BACKEND: {backend}")
         return None
     except ImportError as e:

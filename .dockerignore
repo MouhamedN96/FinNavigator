@@ -1,0 +1,16 @@
+.venv
+.git
+.gitignore
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.db
+.ipynb_checkpoints
+data/*.csv
+data/*.xlsx
+session_logs
+user_input_files
+finnav_qwen3-VL_4b_gguf.zip
+downloads
+node_modules
