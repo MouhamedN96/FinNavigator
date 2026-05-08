@@ -58,10 +58,27 @@ banner "STEP 2 — pip install requirements-ui.txt"
 "${PIP}" install -r requirements-ui.txt
 "${PY}" -c "import flet; print('flet', flet.__version__)"
 
+# Cloudflare Pages uses asdf-managed Python and doesn't put its scripts
+# dir on PATH. Find where pip dropped the `flet` entry point and prepend it.
+PY_BIN_DIR="$(dirname "${PY}")"
+PY_SCRIPTS_DIR="$("${PY}" -c "import sysconfig; print(sysconfig.get_path('scripts'))")"
+export PATH="${PY_SCRIPTS_DIR}:${PY_BIN_DIR}:${PATH}"
+echo "PY_BIN_DIR     : ${PY_BIN_DIR}"
+echo "PY_SCRIPTS_DIR : ${PY_SCRIPTS_DIR}"
+echo "which flet     : $(command -v flet || echo NOT-ON-PATH)"
+
+# Resolve flet binary explicitly with shutil fallback so we don't trust PATH alone
+FLET_BIN="$("${PY}" -c "import shutil; print(shutil.which('flet') or '')")"
+if [ -z "${FLET_BIN}" ]; then
+    for candidate in "${PY_SCRIPTS_DIR}/flet" "${PY_BIN_DIR}/flet"; do
+        if [ -x "${candidate}" ]; then FLET_BIN="${candidate}"; break; fi
+    done
+fi
+[ -z "${FLET_BIN}" ] && { echo "✗ flet binary not found anywhere"; exit 1; }
+echo "FLET_BIN       : ${FLET_BIN}"
+
 banner "STEP 3 — flet build web"
-# `flet build web` needs the working dir to be the *project root*.
-# UI entry is ui/app.py.
-flet build web ui/app.py \
+"${FLET_BIN}" build web ui/app.py \
     --project finnavigator \
     --product "FinNavigator" \
     --org "io.moh749.finnav" \
