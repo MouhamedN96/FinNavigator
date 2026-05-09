@@ -20,6 +20,11 @@ outputs/
 *.csv
 experiments/Finnav_AI.ipynb
 experiments/finnav_unsloth_qwen3_4b.ipynb
+# Runtime logs (may contain secrets during deploy)
+*.log
+finnavigator.production.*.build.log
+deploy.log
+
 # Vision / fine-tuned model artefacts — never check in (5GB+, downloaded from HF at runtime)
 finnav_qwen3-VL_4b_gguf/
 finnav_qwen3-VL_4b_gguf.zip

@@ -1,16 +1,64 @@
+# Build context — keep this tiny so remote builders aren't uploading GBs.
+# Anything that's pulled at runtime (models, embeddings) or written at runtime
+# (uploads, chroma, history) does NOT belong in the image.
+
+# Python / venv
 .venv
-.git
-.gitignore
+.venv-*
 __pycache__
 *.pyc
 *.pyo
 *.pyd
-.db
+*.egg-info
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Git + IDE / tooling
+.git
+.gitignore
+.github
+.claude
+.vscode
+.idea
+.DS_Store
+
+# Notebooks (the fine-tuning notebook contains the leaked HF token; never bake into the image)
+*.ipynb
 .ipynb_checkpoints
-data/*.csv
-data/*.xlsx
+
+# Runtime / generated state — these are written by the running app, not source
+data/
+models/
+outputs/
 session_logs
 user_input_files
-finnav_qwen3-VL_4b_gguf.zip
 downloads
+deploy.log
+
+# Frontend bundles (built separately for Cloudflare Pages, not in the API image)
+build/
+build_web/
 node_modules
+
+# Secrets — belt-and-braces; Fly already gets these via `fly secrets set`
+.env
+.env.*
+!.env.example
+
+# Old artefacts
+finnav_qwen3-VL_4b_gguf
+finnav_qwen3-VL_4b_gguf.zip
+
+# Documentation assets are fine in the repo but not needed inside the image
+*.png
+*.jpg
+*.jpeg
+*.gif
+docs/
+
+# Misc
+*.log
+*.tar
+*.tar.gz
+*.zip
